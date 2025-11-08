@@ -4,6 +4,7 @@ from agt_server.local_games.adx_arena import AdXGameSimulator
 from agt_server.agents.utils.adx.structures import Bid, Campaign, BidBundle, MarketSegment 
 from typing import Set, Dict
 
+# I love food
 class MyNDaysNCampaignsAgent(NDaysNCampaignsAgent):
 
     def __init__(self):
