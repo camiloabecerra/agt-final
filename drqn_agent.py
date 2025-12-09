@@ -62,7 +62,7 @@ class DRQNAgent(NDaysNCampaignsAgent):
         self.impression_rnn_model = RNNModel()
         
         if self.loading_model:
-            path = path_from_local_root("latest_model.pth")
+            path = MODEL_SAVE_PATH
             self.impression_rnn_model.load_state_dict(torch.load(path))
         
         self.impression_model_optimizer = Adam(self.impression_rnn_model.parameters(), lr=LEARNING_RATE)
@@ -327,15 +327,15 @@ NUM_TRAINING_CYCLES = 10
 LEARNING_RATE = 0.005
 GAMMA = 0.9
 
-EPSILON_START = 1
+EPSILON_START = 0.1#1
 EPSILON_END = 0.05
 EPSILON_DECAY = 0.995
 
 BATCH_SIZE = 64
 IMPRESSION_MEMORY_SIZE = 50 # 1 unit is 1 epsiode
 
-IS_TRAINING = False
+IS_TRAINING = True
 LOAD_MODEL = True
 
 # OTHER
-MODEL_SAVE_PATH = "latest_model.pth"
+MODEL_SAVE_PATH = path_from_local_root("latest_model.pth")
