@@ -179,13 +179,13 @@ class DRQNAgent(NDaysNCampaignsAgent):
                         
                         target = episode[end_idx][2] + GAMMA * pred_q_val
                     
-                    
                     if episode[end_idx][1]:
                         q_values_obs.append(target)
                         actions.append(episode[end_idx][1])
                     
                     end_idx += 1
             
+
             actions = torch.tensor(actions).unsqueeze(1)
             
             lengths = []
@@ -280,22 +280,19 @@ class DRQNAgent(NDaysNCampaignsAgent):
         profit = (self.get_cumulative_profit() - self.prev_profit) * self.get_quality_score()
 
         for impression in list(self.active_impression_episodes.keys()):
+            
             # change reward based on if campaign is over
-            # if impression in active_campaigns:
-            # if not, reward is change in completion scaled by budget remaining
             if impression in active_campaigns:
+                # if not, reward is change in completion scaled by budget remaining
                 campaign = active_campaigns[impression]
+                
+                prev_effective_reach = self.active_impression_episodes[impression][-1][0][1]
+                current_effective_reach = self.effective_reach(self.get_cumulative_reach(campaign), campaign.reach)
+                reward = (current_effective_reach - prev_effective_reach) * ((campaign.budget - self.get_cumulative_cost(campaign)) / campaign.budget)
+                self.active_impression_episodes[impression][-1][2] = reward
             else:
-                continue
-
-            prev_effective_reach = self.active_impression_episodes[impression][-1][0][1]
-            current_effective_reach = self.effective_reach(self.get_cumulative_reach(campaign), campaign.reach)
-            reward = (current_effective_reach - prev_effective_reach) * ((campaign.budget - self.get_cumulative_cost(campaign)) / campaign.budget)
-
-            self.active_impression_episodes[impression][-1][2] = reward
-            #else:
                 # if it is, reward is profit
-            #    self.active_impression_episodes[impression][-1][2] = profit
+                self.active_impression_episodes[impression][-1][2] = profit
 
 
     '''
@@ -327,15 +324,15 @@ NUM_POSSIBLE_ACTIONS = 50 # different budget subdivisions to bet
 
 # AGENT HYPERPARAMS
 NUM_TRAINING_CYCLES = 10
-LEARNING_RATE = 0.005
+LEARNING_RATE = 0.001
 GAMMA = 0.9
 
 EPSILON_START = 1#0.1
 EPSILON_END = 0.05
-EPSILON_DECAY = 0.9
+EPSILON_DECAY = 0.9995
 
 BATCH_SIZE = 64
-IMPRESSION_MEMORY_SIZE = 50 # 1 unit is 1 epsiode
+IMPRESSION_MEMORY_SIZE = 100 # 1 unit is 1 epsiode
 
 IS_TRAINING = True
 LOAD_MODEL = True
