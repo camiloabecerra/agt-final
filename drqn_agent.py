@@ -1,5 +1,6 @@
 from agt_server.agents.base_agents.adx_agent import NDaysNCampaignsAgent
 from agt_server.agents.utils.adx.structures import Bid, BidBundle, MarketSegment 
+from path_utils import path_from_local_root
 
 import random
 import numpy as np
@@ -12,7 +13,7 @@ import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
 from torch.optim import Adam
-import torch.nn.functional as F
+
 
 '''
 IMPORTANT: DATA DEFINITIONS
@@ -53,16 +54,24 @@ class DRQNAgent(NDaysNCampaignsAgent):
         super().__init__()
 
         self.name = name
-        
-        self.training_mode = True
-        self.training_cycles = 100
 
+        self.training_mode = True
+        self.loading_model = LOAD_MODEL
+        self.training_cycles = NUM_TRAINING_CYCLES
+        
         self.impression_rnn_model = RNNModel()
+        
+        if self.loading_model:
+            path = MODEL_SAVE_PATH
+            self.impression_rnn_model.load_state_dict(torch.load(path))
+        
         self.impression_model_optimizer = Adam(self.impression_rnn_model.parameters(), lr=LEARNING_RATE)
         self.active_impression_episodes = {}
         self.impression_memory = deque()
 
         self.prev_profit = 0
+
+        self.current_epsilon = EPSILON_START
 
 
     '''
@@ -97,16 +106,28 @@ class DRQNAgent(NDaysNCampaignsAgent):
                 q_values = self.impression_rnn_model(torch.tensor(state_seq).unsqueeze(0))
             
             bid_idx = np.argmax(q_values).item()
-            if random.random() <= EPSILON:
-                bid_idx = random.randint(1,NUM_POSSIBLE_ACTIONS)
+            
+            if not self.training_mode:
+                self.current_epsilon = EPSILON_END
 
-            self.active_impression_episodes[campaign.uid][0][1] = bid_idx
+            if random.random() <= self.current_epsilon:
+                bid_idx = random.randint(0,NUM_POSSIBLE_ACTIONS-1)
+            
+            while self.current_epsilon > EPSILON_END:
+                self.current_epsilon *= EPSILON_DECAY 
+            
+            self.active_impression_episodes[campaign.uid][-1][1] = bid_idx
                     
             bid_value = ((bid_idx + 1) / NUM_POSSIBLE_ACTIONS) * campaign.budget
             
+            num_segments = 0
             for segment in MarketSegment.all_segments():
                 if campaign.target_segment.issubset(segment) or segment == campaign.target_segment:
-                    limit = campaign.budget / (campaign.end_day - campaign.start_day + 1)
+                    num_segments += 1
+            
+            for segment in MarketSegment.all_segments():
+                if campaign.target_segment.issubset(segment) or segment == campaign.target_segment:
+                    limit = campaign.budget / (num_segments*(campaign.end_day - campaign.start_day + 1))
                     bid = Bid(self, segment, bid_value, limit)
                 else:
                     bid = Bid(self, segment, 0, 0)
@@ -158,13 +179,13 @@ class DRQNAgent(NDaysNCampaignsAgent):
                         
                         target = episode[end_idx][2] + GAMMA * pred_q_val
                     
-                    
                     if episode[end_idx][1]:
                         q_values_obs.append(target)
                         actions.append(episode[end_idx][1])
                     
                     end_idx += 1
             
+
             actions = torch.tensor(actions).unsqueeze(1)
             
             lengths = []
@@ -189,6 +210,8 @@ class DRQNAgent(NDaysNCampaignsAgent):
             self.impression_model_optimizer.zero_grad()
             mse.backward()
             self.impression_model_optimizer.step()
+
+            torch.save(self.impression_rnn_model.state_dict(), MODEL_SAVE_PATH)
    
 
     def hash_target_segment(self, segment):
@@ -257,6 +280,7 @@ class DRQNAgent(NDaysNCampaignsAgent):
         profit = (self.get_cumulative_profit() - self.prev_profit) * self.get_quality_score()
 
         for impression in list(self.active_impression_episodes.keys()):
+            
             # change reward based on if campaign is over
             if impression in active_campaigns:
                 # if not, reward is change in completion scaled by budget remaining
@@ -264,8 +288,7 @@ class DRQNAgent(NDaysNCampaignsAgent):
                 
                 prev_effective_reach = self.active_impression_episodes[impression][-1][0][1]
                 current_effective_reach = self.effective_reach(self.get_cumulative_reach(campaign), campaign.reach)
-                reward = (current_effective_reach - prev_effective_reach) * (campaign.budget - self.get_cumulative_cost(campaign))
-
+                reward = (current_effective_reach - prev_effective_reach) * ((campaign.budget - self.get_cumulative_cost(campaign)) / campaign.budget)
                 self.active_impression_episodes[impression][-1][2] = reward
             else:
                 # if it is, reward is profit
@@ -296,12 +319,23 @@ HYPERPARAMETERS
 '''
 
 # RNN HYPERPARAMS
-RNN_NUM_LAYERS = 2
+RNN_NUM_LAYERS = 1
 NUM_POSSIBLE_ACTIONS = 50 # different budget subdivisions to bet
 
 # AGENT HYPERPARAMS
+NUM_TRAINING_CYCLES = 10
 LEARNING_RATE = 0.001
-GAMMA = 0.01
-EPSILON = 0.05
+GAMMA = 0.9
+
+EPSILON_START = 1#0.1
+EPSILON_END = 0.05
+EPSILON_DECAY = 0.9995
+
 BATCH_SIZE = 64
-IMPRESSION_MEMORY_SIZE = 1000 # 1 unit is 1 epsiode
+IMPRESSION_MEMORY_SIZE = 100 # 1 unit is 1 epsiode
+
+IS_TRAINING = True
+LOAD_MODEL = True
+
+# OTHER
+MODEL_SAVE_PATH = path_from_local_root("latest_model.pth")
