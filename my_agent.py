@@ -61,7 +61,7 @@ class MyNDaysNCampaignsAgent(DRQNAgent):
             
             if value_per_impression != 0:
                 bids[campaign] = value_per_impression * campaign.reach
-        
+            
         return bids
 
 

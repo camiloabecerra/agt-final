@@ -55,7 +55,7 @@ class DRQNAgent(NDaysNCampaignsAgent):
 
         self.name = name
 
-        self.training_mode = IS_TRAINING
+        self.training_mode = True
         self.loading_model = LOAD_MODEL
         self.training_cycles = NUM_TRAINING_CYCLES
         
@@ -283,7 +283,10 @@ class DRQNAgent(NDaysNCampaignsAgent):
             # change reward based on if campaign is over
             # if impression in active_campaigns:
             # if not, reward is change in completion scaled by budget remaining
-            campaign = active_campaigns[impression]
+            if impression in active_campaigns:
+                campaign = active_campaigns[impression]
+            else:
+                continue
 
             prev_effective_reach = self.active_impression_episodes[impression][-1][0][1]
             current_effective_reach = self.effective_reach(self.get_cumulative_reach(campaign), campaign.reach)
@@ -327,7 +330,7 @@ NUM_TRAINING_CYCLES = 10
 LEARNING_RATE = 0.005
 GAMMA = 0.9
 
-EPSILON_START = 0.1#1
+EPSILON_START = 1#0.1
 EPSILON_END = 0.05
 EPSILON_DECAY = 0.995
 
