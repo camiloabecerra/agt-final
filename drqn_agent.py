@@ -30,15 +30,15 @@ class RNNModel(nn.Module):
         self.rnn = nn.LSTM(input_size=input_vec_len, hidden_size=hidden_size, num_layers=RNN_NUM_LAYERS, batch_first=True)
         
         self.mlp = nn.Sequential(
-            nn.Linear(hidden_size, 24),
+            nn.Linear(hidden_size, 64),
             nn.ReLU(),
-            nn.Linear(24, 32),
+            nn.Linear(64, 128),
             nn.ReLU(),
-            nn.Linear(32, NUM_POSSIBLE_ACTIONS),
-            #nn.ReLU(),
-            #nn.Linear(32, 16),
-            #nn.ReLU(),
-            #nn.Linear(64,NUM_POSSIBLE_ACTIONS),
+            nn.Linear(128, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64,NUM_POSSIBLE_ACTIONS),
         )
     
     def forward(self, x):
@@ -281,18 +281,18 @@ class DRQNAgent(NDaysNCampaignsAgent):
 
         for impression in list(self.active_impression_episodes.keys()):
             # change reward based on if campaign is over
-            if impression in active_campaigns:
-                # if not, reward is change in completion scaled by budget remaining
-                campaign = active_campaigns[impression]
-                
-                prev_effective_reach = self.active_impression_episodes[impression][-1][0][1]
-                current_effective_reach = self.effective_reach(self.get_cumulative_reach(campaign), campaign.reach)
-                reward = (current_effective_reach - prev_effective_reach) * (campaign.budget - self.get_cumulative_cost(campaign))
+            # if impression in active_campaigns:
+            # if not, reward is change in completion scaled by budget remaining
+            campaign = active_campaigns[impression]
 
-                self.active_impression_episodes[impression][-1][2] = reward
-            else:
+            prev_effective_reach = self.active_impression_episodes[impression][-1][0][1]
+            current_effective_reach = self.effective_reach(self.get_cumulative_reach(campaign), campaign.reach)
+            reward = (current_effective_reach - prev_effective_reach) * ((campaign.budget - self.get_cumulative_cost(campaign)) / campaign.budget)
+
+            self.active_impression_episodes[impression][-1][2] = reward
+            #else:
                 # if it is, reward is profit
-                self.active_impression_episodes[impression][-1][2] = profit
+            #    self.active_impression_episodes[impression][-1][2] = profit
 
 
     '''
@@ -323,13 +323,13 @@ RNN_NUM_LAYERS = 1
 NUM_POSSIBLE_ACTIONS = 50 # different budget subdivisions to bet
 
 # AGENT HYPERPARAMS
-NUM_TRAINING_CYCLES = 5
+NUM_TRAINING_CYCLES = 10
 LEARNING_RATE = 0.005
 GAMMA = 0.9
 
-EPSILON_START = 0.99
+EPSILON_START = 1
 EPSILON_END = 0.05
-EPSILON_DECAY = 0.9
+EPSILON_DECAY = 0.995
 
 BATCH_SIZE = 64
 IMPRESSION_MEMORY_SIZE = 50 # 1 unit is 1 epsiode

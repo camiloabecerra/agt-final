@@ -50,7 +50,7 @@ class MyNDaysNCampaignsAgent(DRQNAgent):
             
             length = campaign.end_day - campaign.start_day + 1
             
-            value_per_impression *= (1-1/(length))
+            value_per_impression *= ((1/(length)) + 0.75)
             
             seg = self.hash_target_segment(campaign.target_segment)
             if seg > 11:
