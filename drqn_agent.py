@@ -31,13 +31,13 @@ class RNNModel(nn.Module):
         self.mlp = nn.Sequential(
             nn.Linear(hidden_size, 64),
             nn.ReLU(),
-            nn.Linear(64, 128),
+            nn.Linear(64, 64),
             nn.ReLU(),
-            nn.Linear(128, 128),
-            nn.ReLU(),
-            nn.Linear(128, 64),
-            nn.ReLU(),
-            nn.Linear(64,NUM_POSSIBLE_ACTIONS),
+            nn.Linear(64, NUM_POSSIBLE_ACTIONS),
+            #nn.ReLU(),
+            #nn.Linear(32, 16),
+            #nn.ReLU(),
+            #nn.Linear(64,NUM_POSSIBLE_ACTIONS),
         )
     
     def forward(self, x):
@@ -53,10 +53,19 @@ class DRQNAgent(NDaysNCampaignsAgent):
         super().__init__()
 
         self.name = name
-        
-        self.training_mode = True
-        self.training_cycles = 100
 
+        self.training_mode = False
+        self.training_cycles = NUM_TRAINING_CYCLES
+        
+        load_model = True
+        '''
+        model = RNNModel()
+        if load_model:
+            model.load_state_dict(torch.load(MODEL_SAVE_PATH))
+            load_model = False 
+        
+        self.impression_rnn_model = model
+        '''
         self.impression_rnn_model = RNNModel()
         self.impression_model_optimizer = Adam(self.impression_rnn_model.parameters(), lr=LEARNING_RATE)
         self.active_impression_episodes = {}
@@ -98,15 +107,20 @@ class DRQNAgent(NDaysNCampaignsAgent):
             
             bid_idx = np.argmax(q_values).item()
             if random.random() <= EPSILON:
-                bid_idx = random.randint(1,NUM_POSSIBLE_ACTIONS)
+                bid_idx = random.randint(0,NUM_POSSIBLE_ACTIONS-1)
 
             self.active_impression_episodes[campaign.uid][0][1] = bid_idx
                     
             bid_value = ((bid_idx + 1) / NUM_POSSIBLE_ACTIONS) * campaign.budget
             
+            num_segments = 0
             for segment in MarketSegment.all_segments():
                 if campaign.target_segment.issubset(segment) or segment == campaign.target_segment:
-                    limit = campaign.budget / (campaign.end_day - campaign.start_day + 1)
+                    num_segments += 1
+            
+            for segment in MarketSegment.all_segments():
+                if campaign.target_segment.issubset(segment) or segment == campaign.target_segment:
+                    limit = campaign.budget / (num_segments*(campaign.end_day - campaign.start_day + 1))
                     bid = Bid(self, segment, bid_value, limit)
                 else:
                     bid = Bid(self, segment, 0, 0)
@@ -189,6 +203,8 @@ class DRQNAgent(NDaysNCampaignsAgent):
             self.impression_model_optimizer.zero_grad()
             mse.backward()
             self.impression_model_optimizer.step()
+
+            torch.save(self.impression_rnn_model.state_dict(), MODEL_SAVE_PATH)
    
 
     def hash_target_segment(self, segment):
@@ -300,8 +316,12 @@ RNN_NUM_LAYERS = 2
 NUM_POSSIBLE_ACTIONS = 50 # different budget subdivisions to bet
 
 # AGENT HYPERPARAMS
-LEARNING_RATE = 0.001
-GAMMA = 0.01
-EPSILON = 0.05
+NUM_TRAINING_CYCLES = 50
+LEARNING_RATE = 0.005
+GAMMA = 0.9
+EPSILON = 0.1
 BATCH_SIZE = 64
-IMPRESSION_MEMORY_SIZE = 1000 # 1 unit is 1 epsiode
+IMPRESSION_MEMORY_SIZE = 100 # 1 unit is 1 epsiode
+
+# OTHER
+MODEL_SAVE_PATH = "latest_model.pth"

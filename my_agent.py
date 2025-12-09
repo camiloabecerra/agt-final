@@ -2,9 +2,12 @@ from agt_server.agents.base_agents.adx_agent import NDaysNCampaignsAgent
 from agt_server.agents.test_agents.adx.tier1.my_agent import Tier1NDaysNCampaignsAgent
 from agt_server.local_games.adx_arena import AdXGameSimulator
 from agt_server.agents.utils.adx.structures import Bid, Campaign, BidBundle, MarketSegment 
+from path_utils import path_from_local_root
 from typing import Set, Dict
+
 from drqn_agent import DRQNAgent
 import numpy as np
+import torch
 
 class MyNDaysNCampaignsAgent(DRQNAgent):
 
@@ -18,7 +21,12 @@ class MyNDaysNCampaignsAgent(DRQNAgent):
 
     def on_new_game(self) -> None:
         # TODO: fill this in (if necessary)
-        pass
+        path = path_from_local_root("latest_model.pth")
+
+        model = RNNModel()
+        
+        model.load_state_dict(torch.load(path))
+        self.impression_rnn_model = model
 
 
     def get_campaign_bids(self, campaigns_for_auction:  Set[Campaign]) -> Dict[Campaign, float]:
