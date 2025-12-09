@@ -1,5 +1,6 @@
 from agt_server.agents.base_agents.adx_agent import NDaysNCampaignsAgent
 from agt_server.agents.utils.adx.structures import Bid, BidBundle, MarketSegment 
+from path_utils import path_from_local_root
 
 import random
 import numpy as np
@@ -12,7 +13,7 @@ import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pack_padded_sequence, pad_sequence
 from torch.optim import Adam
-import torch.nn.functional as F
+
 
 '''
 IMPORTANT: DATA DEFINITIONS
@@ -57,7 +58,12 @@ class DRQNAgent(NDaysNCampaignsAgent):
         self.training_mode = False
         self.training_cycles = NUM_TRAINING_CYCLES
         
-        load_model = True
+        self.impression_rnn_model = RNNModel()
+        
+        if True:
+            path = path_from_local_root("latest_model.pth")
+            self.impression_rnn_model.load_state_dict(torch.load(path))
+        
         '''
         model = RNNModel()
         if load_model:
@@ -66,7 +72,6 @@ class DRQNAgent(NDaysNCampaignsAgent):
         
         self.impression_rnn_model = model
         '''
-        self.impression_rnn_model = RNNModel()
         self.impression_model_optimizer = Adam(self.impression_rnn_model.parameters(), lr=LEARNING_RATE)
         self.active_impression_episodes = {}
         self.impression_memory = deque()
