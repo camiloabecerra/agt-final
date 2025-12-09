@@ -34,19 +34,33 @@ class MyNDaysNCampaignsAgent(DRQNAgent):
             our_budgets.append(our_campaign.budget)
             our_targets.add(our_campaign.target_segment)
         
-        avg_price = np.mean(our_budgets)
-
+        
         for campaign in campaigns_for_auction:
+            value_per_impression = 1
+
             included = False
-            
             for target in our_targets:
                 included |= target.issubset(campaign.target_segment)
                 included |= campaign.target_segment.issubset(target)
+
+            if included:
+                value_per_impression *= 1.5
+            elif campaign.target_segment in our_targets:
+                value_per_impression *= 1.25
             
-            if not included and not (campaign.target_segment in our_targets):
-                bids[campaign] = avg_price
+            length = campaign.end_day - campaign.start_day + 1
+            
+            value_per_impression *= (1-1/(length))
+            
+            seg = self.hash_target_segment(campaign.target_segment)
+            if seg > 11:
+                value_per_impression *= 1.3
             else:
-                bids[campaign] = 0
+                value_per_impression *= 0.8
+
+            
+            if value_per_impression != 0:
+                bids[campaign] = value_per_impression * campaign.reach
         
         return bids
 

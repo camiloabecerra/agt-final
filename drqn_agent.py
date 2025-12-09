@@ -30,11 +30,11 @@ class RNNModel(nn.Module):
         self.rnn = nn.LSTM(input_size=input_vec_len, hidden_size=hidden_size, num_layers=RNN_NUM_LAYERS, batch_first=True)
         
         self.mlp = nn.Sequential(
-            nn.Linear(hidden_size, 64),
+            nn.Linear(hidden_size, 24),
             nn.ReLU(),
-            nn.Linear(64, 64),
+            nn.Linear(24, 32),
             nn.ReLU(),
-            nn.Linear(64, NUM_POSSIBLE_ACTIONS),
+            nn.Linear(32, NUM_POSSIBLE_ACTIONS),
             #nn.ReLU(),
             #nn.Linear(32, 16),
             #nn.ReLU(),
@@ -55,28 +55,23 @@ class DRQNAgent(NDaysNCampaignsAgent):
 
         self.name = name
 
-        self.training_mode = False
+        self.training_mode = IS_TRAINING
+        self.loading_model = LOAD_MODEL
         self.training_cycles = NUM_TRAINING_CYCLES
         
         self.impression_rnn_model = RNNModel()
         
-        if True:
+        if self.loading_model:
             path = path_from_local_root("latest_model.pth")
             self.impression_rnn_model.load_state_dict(torch.load(path))
         
-        '''
-        model = RNNModel()
-        if load_model:
-            model.load_state_dict(torch.load(MODEL_SAVE_PATH))
-            load_model = False 
-        
-        self.impression_rnn_model = model
-        '''
         self.impression_model_optimizer = Adam(self.impression_rnn_model.parameters(), lr=LEARNING_RATE)
         self.active_impression_episodes = {}
         self.impression_memory = deque()
 
         self.prev_profit = 0
+
+        self.current_epsilon = EPSILON_START
 
 
     '''
@@ -111,10 +106,17 @@ class DRQNAgent(NDaysNCampaignsAgent):
                 q_values = self.impression_rnn_model(torch.tensor(state_seq).unsqueeze(0))
             
             bid_idx = np.argmax(q_values).item()
-            if random.random() <= EPSILON:
-                bid_idx = random.randint(0,NUM_POSSIBLE_ACTIONS-1)
+            
+            if not self.training_mode:
+                self.current_epsilon = EPSILON_END
 
-            self.active_impression_episodes[campaign.uid][0][1] = bid_idx
+            if random.random() <= self.current_epsilon:
+                bid_idx = random.randint(0,NUM_POSSIBLE_ACTIONS-1)
+            
+            while self.current_epsilon > EPSILON_END:
+                self.current_epsilon *= EPSILON_DECAY 
+            
+            self.active_impression_episodes[campaign.uid][-1][1] = bid_idx
                     
             bid_value = ((bid_idx + 1) / NUM_POSSIBLE_ACTIONS) * campaign.budget
             
@@ -317,16 +319,23 @@ HYPERPARAMETERS
 '''
 
 # RNN HYPERPARAMS
-RNN_NUM_LAYERS = 2
+RNN_NUM_LAYERS = 1
 NUM_POSSIBLE_ACTIONS = 50 # different budget subdivisions to bet
 
 # AGENT HYPERPARAMS
-NUM_TRAINING_CYCLES = 50
+NUM_TRAINING_CYCLES = 5
 LEARNING_RATE = 0.005
 GAMMA = 0.9
-EPSILON = 0.1
+
+EPSILON_START = 0.99
+EPSILON_END = 0.05
+EPSILON_DECAY = 0.9
+
 BATCH_SIZE = 64
-IMPRESSION_MEMORY_SIZE = 100 # 1 unit is 1 epsiode
+IMPRESSION_MEMORY_SIZE = 50 # 1 unit is 1 epsiode
+
+IS_TRAINING = False
+LOAD_MODEL = True
 
 # OTHER
 MODEL_SAVE_PATH = "latest_model.pth"
