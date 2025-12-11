@@ -55,7 +55,7 @@ class DRQNAgent(NDaysNCampaignsAgent):
 
         self.name = name
 
-        self.training_mode = True
+        self.training_mode = IS_TRAINING
         self.loading_model = LOAD_MODEL
         self.training_cycles = NUM_TRAINING_CYCLES
         
@@ -73,7 +73,7 @@ class DRQNAgent(NDaysNCampaignsAgent):
 
         self.current_epsilon = EPSILON_START
 
-
+    
     '''
     Method to set bids on impression opportunities; includes drqn
     '''
@@ -113,7 +113,7 @@ class DRQNAgent(NDaysNCampaignsAgent):
             if random.random() <= self.current_epsilon:
                 bid_idx = random.randint(0,NUM_POSSIBLE_ACTIONS-1)
             
-            while self.current_epsilon > EPSILON_END:
+            if self.current_epsilon > EPSILON_END:
                 self.current_epsilon *= EPSILON_DECAY 
             
             self.active_impression_episodes[campaign.uid][-1][1] = bid_idx
@@ -127,7 +127,8 @@ class DRQNAgent(NDaysNCampaignsAgent):
             
             for segment in MarketSegment.all_segments():
                 if campaign.target_segment.issubset(segment) or segment == campaign.target_segment:
-                    limit = campaign.budget / (num_segments*(campaign.end_day - campaign.start_day + 1))
+                    limit = campaign.budget * (AGRO) / num_segments
+                    bid_value = min(bid_value, 0.75 * limit)
                     bid = Bid(self, segment, bid_value, limit)
                 else:
                     bid = Bid(self, segment, 0, 0)
@@ -136,7 +137,7 @@ class DRQNAgent(NDaysNCampaignsAgent):
 
             bundle = BidBundle(campaign.uid, campaign.budget, bid_entries)
             bundles.add(bundle)
-
+        
         return bundles
     
     
@@ -210,6 +211,7 @@ class DRQNAgent(NDaysNCampaignsAgent):
             self.impression_model_optimizer.zero_grad()
             mse.backward()
             self.impression_model_optimizer.step()
+            
 
             torch.save(self.impression_rnn_model.state_dict(), MODEL_SAVE_PATH)
    
@@ -323,9 +325,10 @@ RNN_NUM_LAYERS = 1
 NUM_POSSIBLE_ACTIONS = 50 # different budget subdivisions to bet
 
 # AGENT HYPERPARAMS
-NUM_TRAINING_CYCLES = 10
+NUM_TRAINING_CYCLES = 5
 LEARNING_RATE = 0.001
 GAMMA = 0.9
+AGRO = 0.1
 
 EPSILON_START = 1#0.1
 EPSILON_END = 0.05
@@ -338,4 +341,4 @@ IS_TRAINING = True
 LOAD_MODEL = True
 
 # OTHER
-MODEL_SAVE_PATH = path_from_local_root("latest_model.pth")
+MODEL_SAVE_PATH = path_from_local_root("latest_ad_model.pth")

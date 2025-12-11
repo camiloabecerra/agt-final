@@ -5,11 +5,12 @@ from agt_server.agents.utils.adx.structures import Bid, Campaign, BidBundle, Mar
 from typing import Set, Dict
 
 from drqn_agent import DRQNAgent
+from drqn_agent2 import DRQNCampaignAgent
+from drqn_agent_integrated import IntegratedModelRL
 import numpy as np
 import torch
 
-class MyNDaysNCampaignsAgent(DRQNAgent):
-
+class MyNDaysNCampaignsAgent(DRQNCampaignAgent):
     def __init__(self):
         # TODO: fill this in (if necessary)
         name = "MegaKnight"
@@ -21,8 +22,42 @@ class MyNDaysNCampaignsAgent(DRQNAgent):
     def on_new_game(self) -> None:
         # TODO: fill this in (if necessary)
         pass
+    
+    
+    def get_ad_bids(self):
+        bundles = set()
+        
+        for campaign in self.get_active_campaigns():
+            bid_entries = set()
+            
+            eR = self.effective_reach(self.get_cumulative_reach(campaign), campaign.reach)
+            multiplier = 1
+            
+            if eR > 0.775:
+                multiplier = 0.5
+            
+            bid_value = (campaign.budget / campaign.reach) * multiplier
 
+            num_segments = 0
+            for segment in MarketSegment.all_segments():
+                if campaign.target_segment.issubset(segment) or segment == campaign.target_segment:
+                    num_segments += 1
+            
+            for segment in MarketSegment.all_segments():
+                if campaign.target_segment.issubset(segment) or segment == campaign.target_segment:
+                    limit = campaign.budget * (AGRO) / num_segments
+                    bid = Bid(self, segment, bid_value, min(0.3*campaign.budget,limit))
+                else:
+                    bid = Bid(self, segment, 0, 0)
+                
+                bid_entries.add(bid)
 
+            bundle = BidBundle(campaign.uid, campaign.budget, bid_entries)
+            bundles.add(bundle)
+        
+        return bundles
+
+    '''
     def get_campaign_bids(self, campaigns_for_auction:  Set[Campaign]) -> Dict[Campaign, float]:
         # TODO: fill this in 
         bids = {} # campaign; bid
@@ -63,7 +98,10 @@ class MyNDaysNCampaignsAgent(DRQNAgent):
                 bids[campaign] = value_per_impression * campaign.reach
             
         return bids
+    '''
 
+
+AGRO = 0.1
 
 if __name__ == "__main__":
     # Here's an opportunity to test offline against some TA agents. Just run this file to do so.
